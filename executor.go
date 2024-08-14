@@ -362,7 +362,7 @@ func (e *executor) callback(task *Task, code int64, msg string) {
 		e.log.Error("callback ReadAll err : ", err.Error())
 		return
 	}
-	e.log.Info("任务ID[%v] %v;名称[%v];LogID[%v] 回调成功:"+string(body), task.Id, task.Name, task.Param.LogID)
+	e.log.Info("任务ID[%v];名称[%v];LogID[%v] 回调成功:"+string(body), task.Id, task.Name, task.Param.LogID)
 }
 
 // post
