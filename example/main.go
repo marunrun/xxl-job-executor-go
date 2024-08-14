@@ -11,7 +11,7 @@ import (
 
 func main() {
 	exec := xxl.NewExecutor(
-		xxl.ServerAddr("http://xxl-job.sk8s.cn/xxl-job-admin"),
+		xxl.ServerAddr("http://127.0.0.1/xxl-job-admin"),
 		xxl.AccessToken(""),            //请求令牌(默认为空)
 		xxl.ExecutorPort("9999"),       //默认9999（非必填）
 		xxl.RegistryKey("golang-jobs"), //执行器名称
