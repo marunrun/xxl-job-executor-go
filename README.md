@@ -19,7 +19,7 @@
 
 > 如果需要使用这个fork出来的版本  可以在`go.mod`文件中 replace 一下。
 > 
-> `replace github.com/xxl-job/xxl-job-executor-go v1.2.0 => github.com/marunrun/xxl-job-executor-go v1.3.0`
+> `replace github.com/xxl-job/xxl-job-executor-go v1.2.0 => github.com/marunrun/xxl-job-executor-go v1.3.1`
 
 
 # Example
