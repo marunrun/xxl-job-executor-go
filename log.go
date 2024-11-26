@@ -2,10 +2,12 @@ package xxl
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -33,7 +35,8 @@ func (l *logger) Error(format string, a ...interface{}) {
 
 const (
 	// 日志目录
-	logDir = "./xxl-executor-logs/"
+	logDir        = "./xxl-executor-logs/"
+	dirDateLayout = "2006-01-02"
 )
 
 type FileLogger struct {
@@ -41,6 +44,43 @@ type FileLogger struct {
 	execTime time.Time
 	mu       sync.Mutex
 	Prefix   string
+}
+
+// RotateLog 日志轮转，
+func RotateLog(ctx context.Context, duration time.Duration, rotateDay int) {
+
+	// 每一个小时执行一次
+	ticker := time.NewTicker(duration)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// 从logDir 目录下获取所有二级目录
+			dirs, err := os.ReadDir(logDir)
+			if err != nil {
+				log.Printf("error read dir %s; err:%v", logDir, err)
+				continue
+			}
+			for _, dir := range dirs {
+				dirName := dir.Name()
+				// 判断是否是目录
+				if !dir.IsDir() {
+					continue
+				}
+				dirTime, err := time.Parse(dirDateLayout, dirName)
+				// 如果dirTime 超过30天，则删除该目录
+				if time.Now().Sub(dirTime) > time.Duration(rotateDay)*24*time.Hour {
+					// 使用完整路径删除目录
+					fullPath := filepath.Join(logDir, dirName)
+					if err = os.RemoveAll(fullPath); err != nil {
+						log.Printf("error remove dir %s; err:%v", fullPath, err)
+					}
+				}
+			}
+		}
+	}
 }
 
 // NewFileLogger 创建一个新的 FileLogger 实例
@@ -78,7 +118,7 @@ func (l *FileLogger) init() {
 //   - string: 日志目录的路径，格式为 logDir/日期
 func (l *FileLogger) getLogDir() string {
 	// 日期格式化 作为二级目录， logId 作为文件名
-	date := l.execTime.Format("2006-01-02")
+	date := l.execTime.Format(dirDateLayout)
 
 	// 二级目录
 	return fmt.Sprintf("%s/%s", logDir, date)
