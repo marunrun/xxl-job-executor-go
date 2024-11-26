@@ -20,9 +20,9 @@ func main() {
 	)
 	exec.Init()
 	exec.Use(customMiddleware)
-	//设置日志查看handler
-	exec.LogHandler(customLogHandle)
-	//注册任务handler
+	// 设置日志查看handler
+	exec.LogHandler(xxl.FileLogHandler)
+	// 注册任务handler
 	exec.RegTask("task.test", task.Test)
 	exec.RegTask("task.test2", task.Test2)
 	exec.RegTask("task.panic", task.Panic)
