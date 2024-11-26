@@ -3,6 +3,7 @@ package xxl
 import (
 	"context"
 	"encoding/json"
+	"github.com/xxl-job/xxl-job-executor-go/backoff"
 	"io"
 	"io/ioutil"
 	"log"
@@ -114,7 +115,10 @@ func (e *executor) Run() (err error) {
 	}
 	// 监听端口并提供服务
 	e.log.Info("Starting server at " + e.address)
-	go server.ListenAndServe()
+	go func() {
+		err = server.ListenAndServe()
+		log.Panic(err)
+	}()
 	quit := make(chan os.Signal)
 	signal.Notify(quit, syscall.SIGKILL, syscall.SIGQUIT, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -268,6 +272,8 @@ func (e *executor) idleBeat(writer http.ResponseWriter, request *http.Request) {
 }
 
 // 注册执行器到调度中心
+//
+//goland:noinspection HttpUrlsUsage
 func (e *executor) registry() {
 
 	t := time.NewTimer(time.Second * 0) //初始立即执行
@@ -347,21 +353,67 @@ func (e *executor) registryRemove() {
 }
 
 // 回调任务列表
+// callback 是 executor 的一个方法，用于处理任务的回调逻辑。
+// 它从 runList 中删除任务，构造回调数据，并尝试通过 HTTP POST 方法将结果回调到某个接口。
+// 如果回调失败，它将使用退避策略重试。如果所有重试都失败，它将记录错误并返回。
+// 参数:
+//
+//	task - 执行回调的任务对象。
+//	code - 回调的状态码。
+//	msg - 回调的消息。
 func (e *executor) callback(task *Task, code int64, msg string) {
+	// 从 runList 中删除任务。
 	e.runList.Del(Int64ToStr(task.Id))
+
+	// 构造回调的数据。
 	callbackBody := string(returnCall(task.Param, code, msg))
-	//e.log.Info("任务回调参数: %s", callbackBody)
-	res, err := e.post("/api/callback", callbackBody)
-	if err != nil {
-		e.log.Error("callback err : ", err.Error())
-		return
+
+	// 创建一个退避策略对象，用于处理回调失败时的重试逻辑。
+	retry := backoff.New(context.Background(), backoff.Config{
+		MinBackoff: 1 * time.Second,
+		MaxBackoff: 60 * time.Second,
+		MaxRetries: 4,
+	})
+
+	// 初始化回调请求的响应体、响应对象和错误对象。
+	var (
+		body []byte
+		resp *http.Response
+		err  error
+	)
+
+	// 使用退避策略进行回调尝试，直到成功或达到最大重试次数。
+	for {
+		resp, err = e.post("/api/callback", callbackBody)
+		if err != nil {
+			// 如果发生错误，则使用退避策略进行等待。
+			retry.Wait()
+			// 如果退避策略不再进行重试，则记录错误并返回。
+			if !retry.Ongoing() {
+				e.log.Error("callback err : ", err.Error())
+				return
+			}
+			continue
+		}
+
+		// 读取回调响应体。
+		body, err = io.ReadAll(resp.Body)
+		// 忽略关闭响应体的错误。
+		_ = resp.Body.Close()
+		if err != nil {
+			// 如果发生错误，则使用退避策略进行等待。
+			retry.Wait()
+			// 如果退避策略不再进行重试，则记录错误并返回。
+			if !retry.Ongoing() {
+				e.log.Error("callback ReadAll err : ", err.Error())
+				return
+			}
+			continue
+		}
+		break
 	}
-	defer res.Body.Close()
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		e.log.Error("callback ReadAll err : ", err.Error())
-		return
-	}
+
+	// 回调成功后，记录日志信息。
 	e.log.Info("任务ID[%v];名称[%v];LogID[%v] 回调成功:"+string(body), task.Id, task.Name, task.Param.LogID)
 }
 
