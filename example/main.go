@@ -20,12 +20,15 @@ func main() {
 	)
 	exec.Init()
 	exec.Use(customMiddleware)
-	// 设置日志查看handler
+	// 使用日志文件展示日志
 	exec.LogHandler(xxl.FileLogHandler)
 	// 注册任务handler
 	exec.RegTask("task.test", task.Test)
 	exec.RegTask("task.test2", task.Test2)
 	exec.RegTask("task.panic", task.Panic)
+	// 日志轮转
+	go xxl.RotateLog(context.Background(), time.Hour, 31)
+
 	log.Fatal(exec.Run())
 }
 
