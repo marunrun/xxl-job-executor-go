@@ -49,7 +49,7 @@ type FileLogger struct {
 // RotateLog 日志轮转，
 func RotateLog(ctx context.Context, duration time.Duration, rotateDay int) {
 
-	// 每一个小时执行一次
+	// 定时执行
 	ticker := time.NewTicker(duration)
 	defer ticker.Stop()
 	for {
