@@ -128,6 +128,17 @@ func (l *FileLogger) getLogDir() string {
 // 参数 format 是一个格式化字符串，a 是一个可变参数列表，
 // 表示要插入到格式化字符串中的参数。
 func (l *FileLogger) Logf(format string, a ...interface{}) {
+	// 测试用例在 log_test.go 中
+	logContent := fmt.Sprintf(format+"\n", a...)
+
+	_, err := l.Write([]byte(logContent))
+	if err != nil {
+		log.Printf("error write log  err:%v", err)
+	}
+}
+
+// Write 方法将日志内容写入到文件中。
+func (l *FileLogger) Write(buf []byte) (n int, err error) {
 	// 加锁
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -140,14 +151,16 @@ func (l *FileLogger) Logf(format string, a ...interface{}) {
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		// 如果打开文件失败，则记录错误日志
-		log.Printf("error open file %s; err:%v", fileName, err)
+		return 0, fmt.Errorf("error open file %s; err:%v", fileName, err)
 	}
-	defer file.Close() // 关闭文件
 
-	// 创建一个新的日志记录器，将输出重定向到文件
-	log2 := log.New(file, l.Prefix, 0)
-	// 格式化输出日志
-	log2.Printf(format+"\r\n", a...)
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file) // 关闭文件
+
+	// 往buf前插入prefix
+	buf = append([]byte(l.Prefix), buf...)
+	return file.Write(buf)
 }
 
 // getLogFileName 函数根据日志记录器实例的时间戳和日志ID生成日志文件名，并返回该文件名。
@@ -205,7 +218,9 @@ func (l *FileLogger) readLog(fromLineNum int) LogResContent {
 			IsEnd:       true,
 		}
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	// 创建带缓冲的读取器
 	reader := bufio.NewReader(file)
@@ -215,8 +230,11 @@ func (l *FileLogger) readLog(fromLineNum int) LogResContent {
 	// 逐行读取
 	for {
 		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
+		if err != nil {
 			log.Printf("error reading file: %v", err)
+			break
+		}
+		if err == io.EOF {
 			break
 		}
 
@@ -225,9 +243,6 @@ func (l *FileLogger) readLog(fromLineNum int) LogResContent {
 			contentBuilder.WriteString(line)
 		}
 
-		if err == io.EOF {
-			break
-		}
 	}
 
 	return LogResContent{
