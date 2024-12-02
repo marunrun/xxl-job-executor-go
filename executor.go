@@ -123,6 +123,7 @@ func (e *executor) Run() (err error) {
 	signal.Notify(quit, syscall.SIGKILL, syscall.SIGQUIT, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	e.registryRemove()
+	e.cancel()
 	// 宽限一段时间再退出
 	time.Sleep(e.opts.GracefulShutdownTime)
 	return nil
@@ -175,7 +176,7 @@ func (e *executor) runTask(writer http.ResponseWriter, request *http.Request) {
 		}
 	}
 
-	cxt := context.Background()
+	cxt := e.ctx
 	task := e.regList.Get(param.ExecutorHandler)
 	if param.ExecutorTimeout > 0 {
 		task.Ext, task.Cancel = context.WithTimeout(cxt, time.Duration(param.ExecutorTimeout)*time.Second)
@@ -207,7 +208,7 @@ func (e *executor) killTask(writer http.ResponseWriter, request *http.Request) {
 	param := &killReq{}
 	_ = json.Unmarshal(req, &param)
 	if !e.runList.Exists(Int64ToStr(param.JobID)) {
-		_, _ = writer.Write(returnKill(param, FailureCode))
+		_, _ = writer.Write(returnKill(param, SuccessCode))
 		e.log.Error("任务[" + Int64ToStr(param.JobID) + "]没有运行")
 		return
 	}
@@ -349,7 +350,6 @@ func (e *executor) registryRemove() {
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)
 	e.log.Info("执行器摘除成功:" + string(body))
-	e.cancel()
 }
 
 // 回调任务列表
