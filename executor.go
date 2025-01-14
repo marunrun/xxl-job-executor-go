@@ -234,7 +234,7 @@ func (e *executor) taskLog(writer http.ResponseWriter, request *http.Request) {
 		reqErrLogHandler(writer, req, err)
 		return
 	}
-	e.log.Info("日志请求参数:%+v", req)
+	//e.log.Info("日志请求参数:%+v", req)
 	if e.logHandler != nil {
 		res = e.logHandler(req)
 	} else {

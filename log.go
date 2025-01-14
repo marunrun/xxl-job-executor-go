@@ -230,11 +230,12 @@ func (l *FileLogger) readLog(fromLineNum int) LogResContent {
 	// 逐行读取
 	for {
 		line, err := reader.ReadString('\n')
-		if err != nil {
-			log.Printf("error reading file: %v", err)
+
+		if err == io.EOF {
 			break
 		}
-		if err == io.EOF {
+		if err != nil {
+			log.Printf("error reading file: %v", err)
 			break
 		}
 
